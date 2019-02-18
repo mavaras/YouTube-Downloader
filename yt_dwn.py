@@ -99,12 +99,6 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 
         
 if __name__ == "__main__":
-    """
-    url = "https://www.youtube.com/watch?v=FckQc1Fr5jI"
-    playlist = "https://www.youtube.com/playlist?list=PL5IVLTK9PtksBYBQZOPd_39avcDTknAMU"
-    path_to_save = "E:\ESTUDIO\PROGRAMACION\Python\yt_dwn"
-    """
-
     """app = QtGui.QApplication(sys.argv)
     mw = MainWindow()
     mw.show()
