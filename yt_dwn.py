@@ -35,16 +35,18 @@ def dl_playlist(link, ofolder):
 
 
 class mwThread(QThread):
-    def __init__(self, links, folder, convert):
+	paths = []
+
+	def __init__(self, links, folder, convert):
 		QThread.__init__(self)
 		self.links = links
 		self.ofolder = folder
 		self.convert = convert
 
-    def __del__(self):
-        self.wait()
+	def __del__(self):
+		self.wait()
 
-    def run(self):
+	def run(self):
 		for link in self.links:
 			print("Downloading video with link: \n"+str(link))
 			file_name = YouTube(link).title.replace(" ", "_").replace(".", "-")
@@ -54,19 +56,22 @@ class mwThread(QThread):
 			self.emit(SIGNAL("print_text(QString)"), "Downloading video with link: \n"+str(link))
 			self.emit(SIGNAL("print_text(QString)"), str(YouTube(link).title))
 			YouTube(link).streams.first().download(self.ofolder, filename=file_name)
-
-			if self.convert:
-				self.emit(SIGNAL("print_text(QString)"), "converting to .mp3")
+			
+			if self.convert != "none":
+				self.emit(SIGNAL("print_text(QString)"), "converting to ."+self.convert)
 				clip = mp.VideoFileClip(file_path)
-				clip.audio.write_audiofile(file_name+".mp3")
+				clip.audio.write_audiofile(file_name+"."+self.convert)
 
-				#os.remove(file_path)
+				clip.close()
+				os.remove(file_path)
 			else:
 				self.emit(SIGNAL("print_text(QString)"), "...")
 				
 			print("Done!\n")
 			self.emit(SIGNAL("print_text(QString)"), "done!\n")
-		
+
+			self.paths.append(file_path)
+			
 class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 	playlist = False
 	downloading = False
@@ -90,8 +95,10 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		self.rbutton_mp4.toggled.connect(lambda: self.rbutton_changed("mp4"))
 		self.rbutton_mp4.setChecked(True)
 		self.rbutton_mp3.toggled.connect(lambda: self.rbutton_changed("mp3"))
+		self.rbutton_wav.toggled.connect(lambda: self.rbutton_changed("wav"))
 		format_group.addButton(self.rbutton_mp4)
 		format_group.addButton(self.rbutton_mp3)
+		format_group.addButton(self.rbutton_wav)
 
 	def search_folder(self):
 		folder = QFileDialog.getExistingDirectory(self, "Output Folder")
@@ -104,26 +111,30 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		elif typ == "video":
 			self.playlist = False
 		elif typ == "mp4":
-			self.convert = False
+			self.convert = "none"
+		elif typ == "mp3":
+			self.convert = "mp3"
 		else:
-			self.convert = True
+			self.convert = "wav"
 			
 	def download(self):
 		if self.textEdit_folder.toPlainText() != "" and self.textEdit_link.toPlainText() != "":
 			if self.playlist:					
 				#dl_playlist(str(self.textEdit_link.toPlainText()), str(self.textEdit_folder.toPlainText()))
 				links = self.get_playlist_links(str(self.textEdit_link.toPlainText()))
-				self.progressbar.setMaximum(3*len(links))
+				self.progressbar.setMaximum(4*len(links))
 				
 			else:
 				links = []
 				links.append(str(self.textEdit_link.toPlainText()))
-				self.progressbar.setMaximum(3)
+				self.progressbar.setMaximum(4)
 				#dl_video(str(self.textEdit_link.toPlainText()), str(self.textEdit_folder.toPlainText()))
 				time.sleep(1)
 				#self.progressbar.setValue(100)
 				
-			self.mw_thread = mwThread(links, str(self.textEdit_folder.toPlainText()), self.convert)
+			self.mw_thread = mwThread(links,
+									  str(self.textEdit_folder.toPlainText()),
+									  self.convert)
 			self.connect(self.mw_thread, SIGNAL("print_text(QString)"), self.print_text)
 			self.connect(self.mw_thread, SIGNAL("finished()"), self.download_finished)
 			self.mw_thread.start()
@@ -142,6 +153,8 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		self.textEdit_logs.append(text)
 
 	def download_finished(self):
+		self.mw_thread.exit()
+		self.progressbar.setValue(100)
 		if self.playlist:
 			self.textEdit_logs.append("\nplaylist download finished!\n")
 		QtGui.QMessageBox.information(self, "Done!", "Download finished")

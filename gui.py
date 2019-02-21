@@ -104,6 +104,10 @@ class Ui_MainWindow(object):
         self.rbutton_mp4.setChecked(True)
         self.rbutton_mp4.setAutoExclusive(True)
         self.rbutton_mp4.setObjectName(_fromUtf8("rbutton_mp4"))
+        self.rbutton_wav = QtGui.QRadioButton(self.centralwidget)
+        self.rbutton_wav.setGeometry(QtCore.QRect(220, 100, 41, 17))
+        self.rbutton_wav.setAutoExclusive(True)
+        self.rbutton_wav.setObjectName(_fromUtf8("rbutton_wav"))
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtGui.QMenuBar(MainWindow)
         self.menubar.setGeometry(QtCore.QRect(0, 0, 419, 21))
@@ -126,4 +130,5 @@ class Ui_MainWindow(object):
         self.label_2.setText(_translate("MainWindow", "Output Folder", None))
         self.rbutton_mp3.setText(_translate("MainWindow", "mp3", None))
         self.rbutton_mp4.setText(_translate("MainWindow", "mp4", None))
+        self.rbutton_wav.setText(_translate("MainWindow", "wav", None))
 
