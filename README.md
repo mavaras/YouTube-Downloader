@@ -9,8 +9,3 @@ GUI mode: python yt_dnw.py -gui
 
 
 
-TODO:
-
--> exporting formats
-
--> video
