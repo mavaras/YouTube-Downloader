@@ -2,6 +2,8 @@ from pytube import YouTube
 import moviepy.editor as mp
 from bs4 import BeautifulSoup
 from tinytag import TinyTag
+from mutagen.easyid3 import EasyID3
+from mp3_tagger import MP3File
 import sys
 import time
 import os
@@ -13,27 +15,6 @@ from gui import *
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
-
-"""def dl_video(link, ofolder):
-	print("downloading video with link: \n"+str(link))
-	#mw.textEdit_logs.append("downloading video with link: \n"+str(video.get("href")))
-	YouTube(link).streams.first().download(ofolder)
-	print("done!")
-	#mw.textEdit_logs.append("done")
-				
-def dl_playlist(link, ofolder):
-	html_page = requests.get(link)
-	soup = BeautifulSoup(html_page.text, "html.parser")
-	res = soup.find_all("a", {"class":"pl-video-title-link"})
-
-	print(str(len(res))+" videos in playlist "+str(link))
-	mw.textEdit_logs.append(str(len(res))+" videos in playlist "+str(link))
-	for video in res:
-		print("downloading video with link: \n"+str(video.get("href")))
-		#mw.textEdit_logs.append("downloading video with link: \n"+str(video.get("href")))
-		YouTube("https://www.youtube.com/"+video.get("href")).streams.first().download(ofolder)
-		print("done!")
-		#mw.textEdit_logs.append("done")"""
 
 class media_file():
 	def __init__(self, title, ext, album, artist, year, duration, path):
@@ -74,22 +55,24 @@ class mwThread(QThread):
 				print(ud.unidecode(file_name)+"."+self.convert)
 				clip.audio.write_audiofile(self.ofolder+"\\"+file_name+"."+self.convert)
 
-				tags = TinyTag.get(file_path)
-				duration = str(int(int(tags.duration)/60))+":"+str(int(tags.duration))
+				tt_dur = TinyTag.get(file_path)
+				duration = str(int(int(tt_dur.duration)/60))+":"+str(int(tt_dur.duration))
+				
 				mf = media_file(file_name,
 								self.convert,
 								"album",
 								"artist",
 								1990,
-								str(int(int(tags.duration)/60))+":"+str(round(int(tags.duration), 2)),
-								file_path)
+								duration,
+								self.ofolder+"\\"+file_name+"."+self.convert)
 				media_files.append(mf)
 				self.emit(SIGNAL("add_row(QString)"),str(mf.title)+","
 													+str(mf.album)+","
 													+str(mf.artist)+","
 													+str(mf.year)+","
 													+str(mf.duration)+","
-													+str(mf.path)
+													+str(mf.path)+","
+													+str(mf.ext)
 				)
 				
 				clip.close()
@@ -114,6 +97,9 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		self.button_search.clicked.connect(self.search_folder)
 		self.button_download.clicked.connect(self.download)
 
+		self.button_openfile.clicked.connect(self.open_file)
+		
+		# radio buttons
 		videotype_group = QtGui.QButtonGroup(self)
 		self.rbutton_video.toggled.connect(lambda: self.rbutton_changed("video"))
 		self.rbutton_video.setChecked(True)
@@ -131,36 +117,77 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		format_group.addButton(self.rbutton_wav)
 
 		# table
-		#self.tableWidget_files.setRowCount(0)
-		self.tableWidget_files.setColumnCount(6)
+		self.tableWidget_files.setColumnCount(7)
 		self.tableWidget_files.setHorizontalHeaderLabels(
-			QString("title,album,artist,year,duration,location").split(",")
+			QString("title,album,artist,genre,year,duration,location,extension").split(",")
 		)
 		header = self.tableWidget_files.horizontalHeader()
 		header.resizeSection(0, 340)
 		header.resizeSection(1, 150)
 		header.resizeSection(2, 150)
-		header.resizeSection(3, 60)
+		header.resizeSection(3, 70)
 		header.resizeSection(4, 60)
-		header.resizeSection(5, 340)
+		header.resizeSection(5, 60)
+		header.resizeSection(6, 340)
 		#header.setResizeMode(2, QtGui.QHeaderView.Stretch)
 		"""header.setResizeMode(1, QtGui.QHeaderView.ResizeToContents)
 		header.setResizeMode(2, QtGui.QHeaderView.ResizeToContents)"""
 
-		self.button_chalbum.clicked.connect(self.change_album)
+		self.button_writetags.clicked.connect(self.write_tags)
 		
 		self.tableWidget_files.insertRow(0)
-		for c in range(5):
+		for c in range(self.tableWidget_files.columnCount()):
 			self.tableWidget_files.setItem(0, c, QTableWidgetItem("ey"+str(c)))
+		self.tableWidget_files.setItem(0, 6, QTableWidgetItem("E:\ESTUDIO\PROGRAMACION\Python\YouTube-Downloader\Grito_de_terror___efeto_de_sonido.mp3"))
 
-
-	def change_album(self):
-		print("change album")
+	def write_tags(self):
+		print("write tags")
+		new_album = self.textEdit_album.toPlainText()
+		new_artist = self.textEdit_artist.toPlainText()
+		new_year = self.textEdit_year.toPlainText()
+		new_genre = self.textEdit_genre.toPlainText()
+		
 		indexes = self.tableWidget_files.selectionModel().selectedRows()
+		curr_row = self.tableWidget_files.currentItem().row()
+		print(curr_row)
+		
+		f = EasyID3(str(self.tableWidget_files.item(curr_row, self.tableWidget_files.columnCount()-2).text()))	
+		if str(new_album) != "":
+			self.tableWidget_files.setItem(curr_row, 1, QTableWidgetItem(str(new_album)))
+			f["album"] = str(new_album)
+		if str(new_artist) != "":
+			self.tableWidget_files.setItem(curr_row, 2, QTableWidgetItem(str(new_artist)))
+			f["artist"] = str(new_artist)
+		if str(new_year) != "":
+			self.tableWidget_files.setItem(curr_row, 4, QTableWidgetItem(str(new_year)))
+			f["date"] = str(new_year)
+			f["originaldate"] = str(new_year)
+		if str(new_genre) != "":
+			f["genre"] = str(new_genre)
+			self.tableWidget_files.setItem(curr_row, 3, QTableWidgetItem(str(new_genre)))
+
+		f.save()
+		"""
 		for index in sorted(indexes):
 			print(index.row())
+			f = EasyID3(str(self.tableWidget_files.item(index.row(), self.tableWidget_files.columnCount()-2).text()))
+			
+			if str(new_album) != "":
+				self.tableWidget_files.setItem(index.row(), 1, QTableWidgetItem(str(new_album)))
+				f["album"] = str(new_album)
+			if str(new_artist) != "":
+				self.tableWidget_files.setItem(index.row(), 2, QTableWidgetItem(str(new_artist)))
+				f["artist"] = str(new_artist)
+			if str(new_year) != "":
+				self.tableWidget_files.setItem(index.row(), 3, QTableWidgetItem(str(new_year)))
+				f["date"] = str(new_year)
+				f["originaldate"] = str(new_year)
+			if str(new_genre) != "":
+				f["genre"] = str(new_genre)
+
+			f.save()
 			for field in range(self.tableWidget_files.columnCount()):
-				print(self.tableWidget_files.item(index.row(), field).text())
+				print(self.tableWidget_files.item(index.row(), field).text())"""
 	
 	def search_folder(self):
 		folder = QFileDialog.getExistingDirectory(self, "Output Folder")
@@ -184,12 +211,12 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 			if self.playlist:					
 				#dl_playlist(str(self.textEdit_link.toPlainText()), str(self.textEdit_folder.toPlainText()))
 				links = self.get_playlist_links(str(self.textEdit_link.toPlainText()))
-				self.progressbar.setMaximum(3*len(links))
+				self.progressbar.setMaximum(4*len(links))
 				
 			else:
 				links = []
 				links.append(str(self.textEdit_link.toPlainText()))
-				self.progressbar.setMaximum(3)
+				self.progressbar.setMaximum(4)
 				#dl_video(str(self.textEdit_link.toPlainText()), str(self.textEdit_folder.toPlainText()))
 				time.sleep(.5)
 				#self.progressbar.setValue(100)
@@ -211,6 +238,9 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 			
 		return res
 
+	def open_file(self):
+		
+	
 	def print_text(self, text):
 		self.progressbar.setValue(self.progressbar.value()+1)
 		self.textEdit_logs.append(text)
@@ -221,7 +251,7 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		self.tableWidget_files.insertRow(new_row_n)
 		
 		aux = text.split(",")
-		for c in range(new_row_n):
+		for c in range(self.tableWidget_files.columnCount()):
 			self.tableWidget_files.setItem(new_row_n, c, QTableWidgetItem(aux[c]))
 	
 	def download_finished(self):
@@ -229,6 +259,7 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		self.progressbar.setValue(100)
 		if self.playlist:
 			self.textEdit_logs.append("\nplaylist download finished!\n")
+
 		QtGui.QMessageBox.information(self, "Done!", "Download finished")
 		self.progressbar.setValue(0)
 				
@@ -238,25 +269,14 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 			sys.exit()
 
 		
-if __name__ == "__main__":
-	"""
-	url = "https://www.youtube.com/watch?v=FckQc1Fr5jI"
-	playlist = "https://www.youtube.com/playlist?list=PL5IVLTK9PtksBYBQZOPd_39avcDTknAMU"
-	path_to_save = "E:\ESTUDIO\PROGRAMACION\Python\yt_dwn"
-	"""
-
-	"""app = QtGui.QApplication(sys.argv)
+if __name__ == "__main__":	
+	#if len(sys.argv) == 2 and sys.argv[1] == "-gui":
+	media_files = []
+	app = QtGui.QApplication(["YT downloader"])
 	mw = MainWindow()
 	mw.show()
-	app.exec_()"""
-	
-	if len(sys.argv) == 2 and sys.argv[1] == "-gui":
-		media_files = []
-		app = QtGui.QApplication(["YT downloader"])
-		mw = MainWindow()
-		mw.show()
-		app.exec_()
-		
+	app.exec_()
+	"""	
 	elif len(sys.argv) != 5 or sys.argv[1] == "-h" or sys.argv[1] == "--help":
 		print("way to use: ")
 		print("CONSOLE mode: python yt_dnw.py [-v|--video | -p|--playlist] url -l|--location path_where_to_save")
@@ -290,3 +310,4 @@ if __name__ == "__main__":
 		else:
 			print("you need to specify a path to save your download/s (-l|--location path_where_to_save)")
 			sys.exit()
+	"""
