@@ -3,6 +3,7 @@ import moviepy.editor as mp
 from bs4 import BeautifulSoup
 from tinytag import TinyTag
 from mutagen.easyid3 import EasyID3
+from mutagen.mp3 import MP3
 from mp3_tagger import MP3File
 import sys
 import time
@@ -17,14 +18,35 @@ from PyQt4.QtCore import *
 
 
 class media_file():
-	def __init__(self, title, ext, album, artist, year, duration, path):
-		self.title = title
-		self.ext = ext
-		self.album = album
-		self.artist = artist
-		self.year = year
-		self.duration = duration
-		self.path = path
+	def __init__(self, path, title="", ext="", album="", artist="", genre="", year="", duration=""):
+		if title != "":
+			self.title = title
+			self.ext = ext
+			self.album = album
+			self.artist = artist
+			self.genre = genre
+			self.year = year
+			self.duration = duration
+			self.path = path
+		else:
+			self.get_data(path)
+
+	def get_data(self, file_path):
+		f = TinyTag.get(file_path)
+
+		self.path = file_path
+		self.title = file_path.split("\\")[-1]
+		self.ext = self.title.split(".")[1]
+		self.album = f.album if f.album != None else "_"
+		self.artist = f.artist if f.artist != None else "_"
+		self.year = f.album if f.year != None else "_"
+		self.genre = f.album if f.genre != None else "_"
+		self.duration = str(int(int(f.duration)/60))+":"+str(int(str(f.duration/60.0-int(f.duration)/60).split(".")[1][0:2]))
+
+	def get_row(self):
+		return str(self.title+","+self.album+","+self.artist+","
+				   +self.genre+","+self.year+","+self.duration+","
+				   +self.path+","+"mp3")
 
 class mwThread(QThread):
 	paths = []
@@ -58,22 +80,16 @@ class mwThread(QThread):
 				tt_dur = TinyTag.get(file_path)
 				duration = str(int(int(tt_dur.duration)/60))+":"+str(int(tt_dur.duration))
 				
-				mf = media_file(file_name,
+				mf = media_file(self.ofolder+"\\"+file_name+"."+self.convert,
+								file_name,
 								self.convert,
 								"album",
 								"artist",
+								"genre",
 								1990,
-								duration,
-								self.ofolder+"\\"+file_name+"."+self.convert)
+								duration)
 				media_files.append(mf)
-				self.emit(SIGNAL("add_row(QString)"),str(mf.title)+","
-													+str(mf.album)+","
-													+str(mf.artist)+","
-													+str(mf.year)+","
-													+str(mf.duration)+","
-													+str(mf.path)+","
-													+str(mf.ext)
-				)
+				self.emit(SIGNAL("add_row(QString)"), mf.get_row())
 				
 				clip.close()
 				os.remove(file_path)
@@ -98,6 +114,7 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		self.button_download.clicked.connect(self.download)
 
 		self.button_openfile.clicked.connect(self.open_file)
+		self.button_openfolder.clicked.connect(self.open_folder)
 		
 		# radio buttons
 		videotype_group = QtGui.QButtonGroup(self)
@@ -117,28 +134,29 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		format_group.addButton(self.rbutton_wav)
 
 		# table
-		self.tableWidget_files.setColumnCount(7)
+		self.tableWidget_files.setColumnCount(8)
 		self.tableWidget_files.setHorizontalHeaderLabels(
-			QString("title,album,artist,genre,year,duration,location,extension").split(",")
+			QString("filename,album,artist,genre,year,duration,location,file type").split(",")
 		)
 		header = self.tableWidget_files.horizontalHeader()
-		header.resizeSection(0, 340)
+		header.resizeSection(0, 300)
 		header.resizeSection(1, 150)
 		header.resizeSection(2, 150)
 		header.resizeSection(3, 70)
 		header.resizeSection(4, 60)
 		header.resizeSection(5, 60)
 		header.resizeSection(6, 340)
+		header.resizeSection(7, 50)
 		#header.setResizeMode(2, QtGui.QHeaderView.Stretch)
 		"""header.setResizeMode(1, QtGui.QHeaderView.ResizeToContents)
 		header.setResizeMode(2, QtGui.QHeaderView.ResizeToContents)"""
 
 		self.button_writetags.clicked.connect(self.write_tags)
 		
-		self.tableWidget_files.insertRow(0)
+		"""self.tableWidget_files.insertRow(0)
 		for c in range(self.tableWidget_files.columnCount()):
 			self.tableWidget_files.setItem(0, c, QTableWidgetItem("ey"+str(c)))
-		self.tableWidget_files.setItem(0, 6, QTableWidgetItem("E:\ESTUDIO\PROGRAMACION\Python\YouTube-Downloader\Grito_de_terror___efeto_de_sonido.mp3"))
+		self.tableWidget_files.setItem(0, 6, QTableWidgetItem("E:\ESTUDIO\PROGRAMACION\Python\YouTube-Downloader\Grito_de_terror___efeto_de_sonido.mp3"))"""
 
 	def write_tags(self):
 		print("write tags")
@@ -146,18 +164,25 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		new_artist = self.textEdit_artist.toPlainText()
 		new_year = self.textEdit_year.toPlainText()
 		new_genre = self.textEdit_genre.toPlainText()
+		new_trackn = self.textEdit_trackn.toPlainText()
 		
 		indexes = self.tableWidget_files.selectionModel().selectedRows()
 		curr_row = self.tableWidget_files.currentItem().row()
 		print(curr_row)
 		
-		f = EasyID3(str(self.tableWidget_files.item(curr_row, self.tableWidget_files.columnCount()-2).text()))	
+		f = EasyID3(str(self.tableWidget_files.item(curr_row, self.tableWidget_files.columnCount()-2).text()))
+		print(f)
 		if str(new_album) != "":
 			self.tableWidget_files.setItem(curr_row, 1, QTableWidgetItem(str(new_album)))
 			f["album"] = str(new_album)
 		if str(new_artist) != "":
 			self.tableWidget_files.setItem(curr_row, 2, QTableWidgetItem(str(new_artist)))
 			f["artist"] = str(new_artist)
+			f["albumartist"] = str(new_artist)
+			f["composer"] = str(new_artist)
+			f["performer"] = str(new_artist)
+			f["author"] = str(new_artist)
+			f["artistsort"] = str(new_artist)
 		if str(new_year) != "":
 			self.tableWidget_files.setItem(curr_row, 4, QTableWidgetItem(str(new_year)))
 			f["date"] = str(new_year)
@@ -165,29 +190,11 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		if str(new_genre) != "":
 			f["genre"] = str(new_genre)
 			self.tableWidget_files.setItem(curr_row, 3, QTableWidgetItem(str(new_genre)))
+		if str(new_trackn) != "":
+			f["tracknumber"] = str(new_trackn)
+			# new table field
 
-		f.save()
-		"""
-		for index in sorted(indexes):
-			print(index.row())
-			f = EasyID3(str(self.tableWidget_files.item(index.row(), self.tableWidget_files.columnCount()-2).text()))
-			
-			if str(new_album) != "":
-				self.tableWidget_files.setItem(index.row(), 1, QTableWidgetItem(str(new_album)))
-				f["album"] = str(new_album)
-			if str(new_artist) != "":
-				self.tableWidget_files.setItem(index.row(), 2, QTableWidgetItem(str(new_artist)))
-				f["artist"] = str(new_artist)
-			if str(new_year) != "":
-				self.tableWidget_files.setItem(index.row(), 3, QTableWidgetItem(str(new_year)))
-				f["date"] = str(new_year)
-				f["originaldate"] = str(new_year)
-			if str(new_genre) != "":
-				f["genre"] = str(new_genre)
-
-			f.save()
-			for field in range(self.tableWidget_files.columnCount()):
-				print(self.tableWidget_files.item(index.row(), field).text())"""
+		f.save(str(self.tableWidget_files.item(curr_row, self.tableWidget_files.columnCount()-2).text()))
 	
 	def search_folder(self):
 		folder = QFileDialog.getExistingDirectory(self, "Output Folder")
@@ -239,8 +246,20 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		return res
 
 	def open_file(self):
+		selected_f = QFileDialog.getOpenFileName(self, "Select file", "", "Audio Files (*.mp3)")
+		mf = media_file(str(selected_f).replace("/", "\\"))
+		media_files.append(mf)		
+		self.add_row_to_table(mf.get_row())
 		
-	
+	def open_folder(self):
+		folder = QFileDialog.getExistingDirectory(self, "Select folder")
+		files = [[f for f in files if "mp3" in f] for root, dirs, files in os.walk(str(folder))][0]
+		print(files)
+		for f in files:
+			mf = media_file(str(folder+"\\"+f))
+			media_files.append(mf)
+			self.add_row_to_table(mf.get_row())
+			
 	def print_text(self, text):
 		self.progressbar.setValue(self.progressbar.value()+1)
 		self.textEdit_logs.append(text)
